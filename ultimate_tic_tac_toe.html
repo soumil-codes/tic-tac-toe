@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ultimate Tic Tac Toe</title>
+
+<style>
+  body {
+    margin: 0;
+    font-family: 'Segoe UI', sans-serif;
+    background: #0f172a;
+    color: white;
+    text-align: center;
+  }
+
+  h1 {
+    margin: 10px;
+  }
+
+  #status {
+    margin: 10px;
+    font-size: 18px;
+  }
+
+  #game {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    width: 95vw;
+    max-width: 600px;
+    margin: auto;
+  }
+
+  .big-cell {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+    padding: 4px;
+    background: #1e293b;
+    border-radius: 10px;
+    transition: transform 0.25s;
+  }
+
+  .big-cell.active {
+    outline: 3px solid #22c55e;
+  }
+
+  .big-cell.wonX {
+    background: rgba(59,130,246,0.3);
+  }
+
+  .big-cell.wonO {
+    background: rgba(244,63,94,0.3);
+  }
+
+  .small-cell {
+    aspect-ratio: 1;
+    background: #020617;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 1.6rem;
+    cursor: pointer;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .small-cell:hover {
+    background: #334155;
+  }
+
+  .disabled {
+    pointer-events: none;
+    opacity: 0.5;
+  }
+
+  .zoomed {
+    transform: scale(1.6);
+    z-index: 5;
+  }
+
+  button {
+    margin: 15px;
+    padding: 10px 20px;
+    font-size: 16px;
+    background: #22c55e;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    color: black;
+    font-weight: bold;
+  }
+
+  button:hover {
+    background: #16a34a;
+  }
+</style>
+</head>
+
+<body>
+
+<h1>Ultimate Tic Tac Toe</h1>
+<div id="status">Current Player: X</div>
+<div id="game"></div>
+<button onclick="undo()">Undo</button>
+
+<script>
+const game = document.getElementById("game");
+const statusText = document.getElementById("status");
+
+let currentPlayer = "X";
+let history = [];
+
+let boards = Array(9).fill().map(() => Array(9).fill(""));
+let boardWinners = Array(9).fill(null);
+let nextBoard = null;
+let gameOver = false;
+
+// WIN PATTERNS
+const wins = [
+  [0,1,2],[3,4,5],[6,7,8],
+  [0,3,6],[1,4,7],[2,5,8],
+  [0,4,8],[2,4,6]
+];
+
+// CREATE UI
+for (let i = 0; i < 9; i++) {
+  const big = document.createElement("div");
+  big.classList.add("big-cell");
+
+  big.addEventListener("click", (e) => {
+    if (e.target.classList.contains("small-cell")) return;
+
+    document.querySelectorAll(".big-cell").forEach(c => c.classList.remove("zoomed"));
+    big.classList.toggle("zoomed");
+  });
+
+  for (let j = 0; j < 9; j++) {
+    const small = document.createElement("div");
+    small.classList.add("small-cell");
+
+    small.addEventListener("click", (e) => {
+      e.stopPropagation();
+      handleMove(i, j, small);
+    });
+
+    big.appendChild(small);
+  }
+
+  game.appendChild(big);
+}
+
+function handleMove(b, c, cellEl) {
+  if (gameOver) return;
+  if (boards[b][c] !== "") return;
+
+  if (nextBoard !== null && nextBoard !== b) return;
+
+  boards[b][c] = currentPlayer;
+  cellEl.textContent = currentPlayer;
+
+  history.push({b, c, player: currentPlayer});
+
+  // CHECK SMALL WIN
+  if (checkWin(boards[b])) {
+    boardWinners[b] = currentPlayer;
+    updateBoardUI(b);
+  }
+
+  // CHECK BIG WIN
+  if (checkWin(boardWinners)) {
+    statusText.textContent = `${currentPlayer} WINS THE GAME 🎉`;
+    gameOver = true;
+    return;
+  }
+
+  // SET NEXT BOARD
+  nextBoard = boardWinners[c] || boards[c].every(x => x !== "") ? null : c;
+
+  currentPlayer = currentPlayer === "X" ? "O" : "X";
+  updateUI();
+}
+
+function checkWin(arr) {
+  return wins.some(([a,b,c]) =>
+    arr[a] && arr[a] === arr[b] && arr[a] === arr[c]
+  );
+}
+
+function updateBoardUI(index) {
+  const big = game.children[index];
+  big.classList.add("disabled");
+
+  if (boardWinners[index] === "X") big.classList.add("wonX");
+  if (boardWinners[index] === "O") big.classList.add("wonO");
+}
+
+function updateUI() {
+  statusText.textContent = `Current Player: ${currentPlayer}`;
+
+  document.querySelectorAll(".big-cell").forEach((el, i) => {
+    el.classList.remove("active");
+
+    if (nextBoard === null || nextBoard === i) {
+      if (!boardWinners[i]) el.classList.add("active");
+    }
+  });
+}
+
+function undo() {
+  if (history.length === 0 || gameOver) return;
+
+  const last = history.pop();
+
+  boards[last.b][last.c] = "";
+  const cell = game.children[last.b].children[last.c];
+  cell.textContent = "";
+
+  boardWinners[last.b] = null;
+  game.children[last.b].classList.remove("wonX","wonO","disabled");
+
+  currentPlayer = last.player;
+  gameOver = false;
+  nextBoard = null;
+
+  updateUI();
+}
+
+// INITIAL UI
+updateUI();
+</script>
+
+</body>
+</html>
