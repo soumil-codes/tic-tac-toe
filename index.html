@@ -149,7 +149,9 @@
 
 
         let mySymbol = localStorage.getItem("player_" + roomId) || null;
-        let ready = localMode; // local mode = always ready
+        let playerReady = localMode;
+        let gameReady = localMode;
+        let ready = localMode;
 
         if (!localMode) {
             const playerRef = ref(db, "rooms/" + roomId + "/players");
@@ -183,7 +185,8 @@
                 }
 
                 // ✅ IMPORTANT: mark ready AFTER assignment
-                ready = true;
+                playerReady = true;
+                ready = playerReady && gameReady;
                 updateUI();
             });
         }
@@ -257,7 +260,11 @@
             }
 
             // SET NEXT BOARD
-            nextBoard = boardWinners[c] || boards[c].every(x => x !== "") ? null : c;
+            // Use != null (loose equality) to catch both null AND undefined,
+            // guarding against Firebase dropping null values on sync.
+            const targetWon  = boardWinners[c] != null;
+            const targetFull = boards[c].every(x => x !== "");
+            nextBoard = (targetWon || targetFull) ? null : c;
 
             currentPlayer = currentPlayer === "X" ? "O" : "X";
             updateUI();
@@ -358,20 +365,44 @@
                 const data = snapshot.val();
                 if (!data) return;
 
-                boards = data.boards || boards;
+                // Firebase drops null values from arrays, returning sparse objects like {2:"X"}.
+                // We must normalize back to proper arrays, otherwise boardWinners[c] is
+                // `undefined` for unwon boards, and `undefined !== null` is TRUE — which
+                // makes every board look "won" and nextBoard stays null forever.
+                const rawBoards    = data.boards      || {};
+                const rawWinners   = data.boardWinners || {};
+
+                boards = Array.from({ length: 9 }, (_, b) =>
+                    Array.from({ length: 9 }, (_, c) => (rawBoards[b] ?? {})[c] ?? "")
+                );
+                boardWinners = Array.from({ length: 9 }, (_, i) => rawWinners[i] ?? null);
+
                 currentPlayer = data.currentPlayer || currentPlayer;
-                nextBoard = data.nextBoard;
-                boardWinners = data.boardWinners || boardWinners;
+                // Firebase also drops null nextBoard — use ?? to restore it as null not undefined
+                nextBoard = data.nextBoard ?? null;
 
                 renderBoard();
+
+                gameReady = true;
+                ready = playerReady && gameReady;
+                updateUI();
             });
         }
 
         function renderBoard() {
             for (let b = 0; b < 9; b++) {
+                const big = game.children[b];
+                // Reset all board-level classes before re-applying
+                big.classList.remove("wonX", "wonO", "disabled", "active");
+
                 for (let c = 0; c < 9; c++) {
-                    const cell = game.children[b].children[c];
-                    cell.textContent = boards[b][c];
+                    big.children[c].textContent = boards[b][c];
+                }
+
+                // Re-apply winner styling (was missing — caused won boards to
+                // visually reset and silently accept clicks after each sync)
+                if (boardWinners[b] != null) {
+                    updateBoardUI(b);
                 }
             }
 
