@@ -129,7 +129,7 @@
             box-shadow: 0px 0px 8px #f43f5e inset;
             /* red */
         }
-        
+
         .cell-o {
             color: #3b82f6;
             box-shadow: 0px 0px 8px #3b82f6 inset;
@@ -139,6 +139,11 @@
         @media (width < 600px) {
             .big-overlay {
                 font-size: 8rem;
+            }
+
+            .big-cell {
+                gap: 2px;
+                padding: 2px;
             }
         }
     </style>
@@ -259,18 +264,23 @@
 
             // assign ONLY if not assigned yet
             if (!assigned) {
-                if (!players.X) {
+                if (!players.X && !players.O) {
                     mySymbol = "X";
                     assigned = true;
                     set(ref(db, "rooms/" + roomId + "/players/X"), username);
                 }
-                else if (!players.O) {
+                else if (players.X && !players.O) {
                     mySymbol = "O";
                     assigned = true;
                     set(ref(db, "rooms/" + roomId + "/players/O"), username);
                 }
+                else if (!players.X && players.O) {
+                    mySymbol = "X";
+                    assigned = true;
+                    set(ref(db, "rooms/" + roomId + "/players/X"), username);
+                }
                 else {
-                    // 👀 spectator mode
+                    // spectator
                     mySymbol = null;
                     assigned = true;
                 }
