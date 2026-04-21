@@ -1,415 +1,94 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ultimate Tic Tac Toe</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ultimate Tic Tac Toe</title>
 
-    <style>
-        body {
-            margin: 0;
-            font-family: 'Segoe UI', sans-serif;
-            background: #0f172a;
-            color: white;
-            text-align: center;
-        }
+<style>
+body {
+  margin: 0;
+  font-family: 'Segoe UI', sans-serif;
+  background: linear-gradient(135deg, #0f172a, #020617);
+  color: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
 
-        h1 {
-            margin: 10px;
-        }
+.container {
+  text-align: center;
+  padding: 30px;
+  background: rgba(30,41,59,0.7);
+  border-radius: 15px;
+  box-shadow: 0 0 30px rgba(0,0,0,0.5);
+  backdrop-filter: blur(10px);
+}
 
-        #status {
-            margin: 10px;
-            font-size: 18px;
-        }
+h1 {
+  margin-bottom: 30px;
+  font-size: 2rem;
+}
 
-        #game {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-            width: 95vw;
-            max-width: 600px;
-            margin: auto;
-        }
+button {
+  display: block;
+  width: 240px;
+  margin: 12px auto;
+  padding: 14px;
+  font-size: 16px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  color: black;
+  font-weight: bold;
+  transition: all 0.2s ease;
+}
 
-        .big-cell {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 4px;
-            padding: 4px;
-            background: #1e293b;
-            border-radius: 10px;
-            transition: transform 0.25s;
-        }
+button:hover {
+  transform: scale(1.05);
+  background: linear-gradient(135deg, #4ade80, #15803d);
+}
 
-        .big-cell.active {
-            outline: 3px solid #22c55e;
-        }
-
-        .big-cell.wonX {
-            background: rgba(59, 130, 246, 0.3);
-        }
-
-        .big-cell.wonO {
-            background: rgba(244, 63, 94, 0.3);
-        }
-
-        .small-cell {
-            aspect-ratio: 1;
-            background: #020617;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 1.6rem;
-            cursor: pointer;
-            border-radius: 6px;
-            overflow: hidden;
-        }
-
-        .small-cell:hover {
-            background: #334155;
-        }
-
-        .disabled {
-            pointer-events: none;
-            opacity: 0.5;
-        }
-
-        .zoomed {
-            transform: scale(1.6);
-            z-index: 5;
-        }
-
-        button {
-            margin: 15px;
-            padding: 10px 20px;
-            font-size: 16px;
-            background: #22c55e;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            color: black;
-            font-weight: bold;
-        }
-
-        button:hover {
-            background: #16a34a;
-        }
-    </style>
+.footer {
+  margin-top: 15px;
+  font-size: 12px;
+  opacity: 0.6;
+}
+</style>
 </head>
 
 <body>
 
-    <h1>Ultimate Tic Tac Toe</h1>
-    <div id="status">Current Player: X</div>
-    <div id="game"></div>
-    <button onclick="undo()">Undo</button>
-    <button onclick="resetGame()">Reset Game</button>
-
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-        import { getDatabase, ref, set, onValue }
-            from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyBPMx8C4OavgwkDPfOAc-PEJz_JZuQkPAg",
-            authDomain: "tic-tac-toe-3953c.firebaseapp.com",
-            databaseURL: "https://tic-tac-toe-3953c-default-rtdb.asia-southeast1.firebasedatabase.app",
-            projectId: "tic-tac-toe-3953c",
-            storageBucket: "tic-tac-toe-3953c.firebasestorage.app",
-            messagingSenderId: "408667684565",
-            appId: "1:408667684565:web:0eb5760ae57dcb24b62c5c"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const db = getDatabase(app);
-
-        const params = new URLSearchParams(window.location.search);
-        let roomId = params.get("room");
-
-        // ⭐ NEW: allow local mode
-        if (!roomId) {
-            const choice = prompt("Enter Room Code (Cancel = Local Play)");
-
-            if (choice) {
-                window.location.search = "?room=" + choice;
-            }
-        }
-
-        // ⭐ NEW: detect mode
-        let localMode = !roomId;
-
-
-        const game = document.getElementById("game");
-        const statusText = document.getElementById("status");
-
-        let currentPlayer = "X";
-
-
-
-        let mySymbol = localStorage.getItem("player_" + roomId) || null;
-        let playerReady = localMode;
-        let gameReady = localMode;
-        let ready = localMode;
-
-        if (!localMode) {
-            const playerRef = ref(db, "rooms/" + roomId + "/players");
-
-            onValue(playerRef, (snapshot) => {
-                const players = snapshot.val() || {};
-
-                // ✅ If already assigned and still valid → just mark ready
-                if (mySymbol && players[mySymbol]) {
-                    ready = true;
-                    updateUI();
-                    return;
-                }
-
-                // ✅ Try assigning
-                if (!mySymbol) {
-                    if (!players.X) {
-                        mySymbol = "X";
-                        set(ref(db, "rooms/" + roomId + "/players/X"), "taken");
-                    } else if (!players.O) {
-                        mySymbol = "O";
-                        set(ref(db, "rooms/" + roomId + "/players/O"), "taken");
-                    } else {
-                        alert("Room full!");
-                        return;
-                    }
-
-                    // save locally
-                    localStorage.setItem("player_" + roomId, mySymbol);
-                    console.log("Assigned:", mySymbol);
-                }
-
-                // ✅ IMPORTANT: mark ready AFTER assignment
-                playerReady = true;
-                ready = playerReady && gameReady;
-                updateUI();
-            });
-        }
-
-        let history = [];
-
-        let boards = Array(9).fill().map(() => Array(9).fill(""));
-        let boardWinners = Array(9).fill(null);
-        let nextBoard = null;
-        let gameOver = false;
-
-
-
-        // WIN PATTERNS
-        const wins = [
-            [0, 1, 2], [3, 4, 5], [6, 7, 8],
-            [0, 3, 6], [1, 4, 7], [2, 5, 8],
-            [0, 4, 8], [2, 4, 6]
-        ];
-
-        // CREATE UI
-        for (let i = 0; i < 9; i++) {
-            const big = document.createElement("div");
-            big.classList.add("big-cell");
-
-            for (let j = 0; j < 9; j++) {
-                const small = document.createElement("div");
-                small.classList.add("small-cell");
-
-                small.addEventListener("click", (e) => {
-                    e.stopPropagation();
-                    handleMove(i, j, small);
-                });
-
-                big.appendChild(small);
-            }
-
-            game.appendChild(big);
-        }
-        if (!localMode && mySymbol) {
-            statusText.textContent = `You are ${mySymbol} | Turn: ${currentPlayer}`;
-        }
-
-
-        function handleMove(b, c, cellEl) {
-            // ⭐ LOCK TURNS ONLY in multiplayer
-            if (!ready) return;
-
-            if (!localMode && currentPlayer !== mySymbol) return;
-            if (gameOver) return;
-            if (boards[b][c] !== "") return;
-
-            if (nextBoard !== null && nextBoard !== b) return;
-
-            boards[b][c] = currentPlayer;
-            cellEl.textContent = currentPlayer;
-
-            history.push({ b, c, player: currentPlayer });
-
-            // CHECK SMALL WIN
-            if (checkWin(boards[b])) {
-                boardWinners[b] = currentPlayer;
-                updateBoardUI(b);
-            }
-
-            // CHECK BIG WIN
-            if (checkWin(boardWinners)) {
-                statusText.textContent = `${currentPlayer} WINS THE GAME 🎉`;
-                gameOver = true;
-                return;
-            }
-
-            // SET NEXT BOARD
-            // Use != null (loose equality) to catch both null AND undefined,
-            // guarding against Firebase dropping null values on sync.
-            const targetWon  = boardWinners[c] != null;
-            const targetFull = boards[c].every(x => x !== "");
-            nextBoard = (targetWon || targetFull) ? null : c;
-
-            currentPlayer = currentPlayer === "X" ? "O" : "X";
-            updateUI();
-
-            if (!localMode) {
-                set(ref(db, "rooms/" + roomId), {
-                    boards,
-                    currentPlayer,
-                    nextBoard,
-                    boardWinners
-                });
-            }
-        }
-
-        function checkWin(arr) {
-            return wins.some(([a, b, c]) =>
-                arr[a] && arr[a] === arr[b] && arr[a] === arr[c]
-            );
-        }
-
-        function updateBoardUI(index) {
-            const big = game.children[index];
-            big.classList.add("disabled");
-
-            if (boardWinners[index] === "X") big.classList.add("wonX");
-            if (boardWinners[index] === "O") big.classList.add("wonO");
-        }
-
-        function updateUI() {
-            if (!localMode) {
-                if (!ready) {
-                    statusText.textContent = "Joining room...";
-                } else {
-                    statusText.textContent = `You are ${mySymbol} | Turn: ${currentPlayer}`;
-                }
-            } else {
-                statusText.textContent = `Current Player: ${currentPlayer}`;
-            }
-
-            document.querySelectorAll(".big-cell").forEach((el, i) => {
-                el.classList.remove("active");
-
-                if (nextBoard === null || nextBoard === i) {
-                    if (!boardWinners[i]) el.classList.add("active");
-                }
-            });
-        }
-
-        function undo() {
-            if (history.length === 0 || gameOver) return;
-
-            const last = history.pop();
-
-            boards[last.b][last.c] = "";
-            const cell = game.children[last.b].children[last.c];
-            cell.textContent = "";
-
-            boardWinners[last.b] = null;
-            game.children[last.b].classList.remove("wonX", "wonO", "disabled");
-
-            currentPlayer = last.player;
-            gameOver = false;
-            nextBoard = null;
-
-            updateUI();
-        }
-
-        function resetGame() {
-            // reset local state
-            boards = Array(9).fill().map(() => Array(9).fill(""));
-            boardWinners = Array(9).fill(null);
-            nextBoard = null;
-            currentPlayer = "X";
-            gameOver = false;
-
-            updateUI();
-            renderBoard();
-
-            // 🔥 sync to Firebase (only in multiplayer)
-            if (!localMode) {
-                set(ref(db, "rooms/" + roomId), {
-                    boards,
-                    currentPlayer,
-                    nextBoard,
-                    boardWinners,
-                    // players: null // optional: clears players if you want fresh roles
-                });
-
-                // also clear saved role
-                localStorage.removeItem("player_" + roomId);
-                mySymbol = null;
-            }
-        }
-        // INITIAL UI
-        updateUI();
-        if (!localMode) {
-            onValue(ref(db, "rooms/" + roomId), (snapshot) => {
-                const data = snapshot.val();
-                if (!data) return;
-
-                // Firebase drops null values from arrays, returning sparse objects like {2:"X"}.
-                // We must normalize back to proper arrays, otherwise boardWinners[c] is
-                // `undefined` for unwon boards, and `undefined !== null` is TRUE — which
-                // makes every board look "won" and nextBoard stays null forever.
-                const rawBoards    = data.boards      || {};
-                const rawWinners   = data.boardWinners || {};
-
-                boards = Array.from({ length: 9 }, (_, b) =>
-                    Array.from({ length: 9 }, (_, c) => (rawBoards[b] ?? {})[c] ?? "")
-                );
-                boardWinners = Array.from({ length: 9 }, (_, i) => rawWinners[i] ?? null);
-
-                currentPlayer = data.currentPlayer || currentPlayer;
-                // Firebase also drops null nextBoard — use ?? to restore it as null not undefined
-                nextBoard = data.nextBoard ?? null;
-
-                renderBoard();
-
-                gameReady = true;
-                ready = playerReady && gameReady;
-                updateUI();
-            });
-        }
-
-        function renderBoard() {
-            for (let b = 0; b < 9; b++) {
-                const big = game.children[b];
-                // Reset all board-level classes before re-applying
-                big.classList.remove("wonX", "wonO", "disabled", "active");
-
-                for (let c = 0; c < 9; c++) {
-                    big.children[c].textContent = boards[b][c];
-                }
-
-                // Re-apply winner styling (was missing — caused won boards to
-                // visually reset and silently accept clicks after each sync)
-                if (boardWinners[b] != null) {
-                    updateBoardUI(b);
-                }
-            }
-
-            updateUI();
-        }
-    </script>
+<div class="container">
+  <h1>Ultimate Tic Tac Toe</h1>
+
+  <button onclick="goLocal()">Pass & Play</button>
+  <button onclick="goMultiplayer()">Multiplayer</button>
+  <button onclick="goSandbox()">Sandbox Mode</button>
+  <button onclick="goRules()">How to Play</button>
+
+  <div class="footer">Play with friends • Built for fun 🎮</div>
+</div>
+
+<script>
+function goLocal() {
+  window.location.href = "local.html";
+}
+
+function goMultiplayer() {
+  window.location.href = "join.html";
+}
+
+function goSandbox() {
+  window.location.href = "sandbox.html";
+}
+
+function goRules() {
+  window.location.href = "rules.html";
+}
+</script>
 
 </body>
-
 </html>

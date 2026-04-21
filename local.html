@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pass & Play</title>
+    <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/566/566294.png">
+
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', sans-serif;
+            background: #0f172a;
+            color: white;
+            text-align: center;
+        }
+
+        h1 {
+            margin: 10px;
+        }
+
+        #status {
+            margin: 10px;
+            font-size: 18px;
+        }
+
+        #game {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            width: 95vw;
+            max-width: 600px;
+            margin: auto;
+        }
+
+        .big-cell {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 4px;
+            padding: 4px;
+            background: #1e293b;
+            border-radius: 10px;
+        }
+
+        .big-cell.active {
+            outline: 3px solid #22c55e;
+        }
+
+        .big-cell.wonX {
+            background: rgba(59, 130, 246, 0.3);
+        }
+
+        .big-cell.wonO {
+            background: rgba(244, 63, 94, 0.3);
+        }
+
+        .small-cell {
+            aspect-ratio: 1;
+            background: #020617;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.6rem;
+            cursor: pointer;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .small-cell:hover {
+            background: #334155;
+        }
+
+        .disabled {
+            pointer-events: none;
+            opacity: 0.5;
+        }
+
+        button {
+            margin: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            background: #22c55e;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            color: black;
+            font-weight: bold;
+        }
+
+        button:hover {
+            background: #16a34a;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Pass & Play</h1>
+    <div id="status">Current Player: X</div>
+
+    <div id="game"></div>
+
+    <button onclick="undo()">Undo</button>
+    <button onclick="resetGame()">Reset</button>
+    <button onclick="goHome()">Home</button>
+
+    <script>
+        const game = document.getElementById("game");
+        const statusText = document.getElementById("status");
+
+        let currentPlayer = "X";
+        let boards = Array(9).fill().map(() => Array(9).fill(""));
+        let boardWinners = Array(9).fill(null);
+        let nextBoard = null;
+        let history = [];
+        let gameOver = false;
+
+        const wins = [
+            [0, 1, 2], [3, 4, 5], [6, 7, 8],
+            [0, 3, 6], [1, 4, 7], [2, 5, 8],
+            [0, 4, 8], [2, 4, 6]
+        ];
+
+        // CREATE GRID
+        for (let i = 0; i < 9; i++) {
+            const big = document.createElement("div");
+            big.classList.add("big-cell");
+
+            for (let j = 0; j < 9; j++) {
+                const small = document.createElement("div");
+                small.classList.add("small-cell");
+
+                small.addEventListener("click", () => {
+                    handleMove(i, j, small);
+                });
+
+                big.appendChild(small);
+            }
+
+            game.appendChild(big);
+        }
+
+        function handleMove(b, c, cellEl) {
+            if (gameOver) return;
+            if (boards[b][c] !== "") return;
+            if (nextBoard !== null && nextBoard !== b) return;
+
+            boards[b][c] = currentPlayer;
+            cellEl.textContent = currentPlayer;
+
+            history.push({
+                b,
+                c,
+                player: currentPlayer,
+                prevNextBoard: nextBoard
+            });
+
+            // small win
+            if (checkWin(boards[b])) {
+                boardWinners[b] = currentPlayer;
+                updateBoardUI(b);
+            }
+
+            // big win
+            if (checkWin(boardWinners)) {
+                statusText.textContent = currentPlayer + " WINS 🎉";
+                gameOver = true;
+                return;
+            }
+
+            // next board
+            const targetWon = boardWinners[c] != null;
+            const targetFull = boards[c].every(x => x !== "");
+            nextBoard = (targetWon || targetFull) ? null : c;
+
+            currentPlayer = currentPlayer === "X" ? "O" : "X";
+
+            updateUI();
+        }
+
+        function checkWin(arr) {
+            return wins.some(([a, b, c]) =>
+                arr[a] && arr[a] === arr[b] && arr[a] === arr[c]
+            );
+        }
+
+        function updateBoardUI(index) {
+            const big = game.children[index];
+            big.classList.add("disabled");
+
+            if (boardWinners[index] === "X") big.classList.add("wonX");
+            if (boardWinners[index] === "O") big.classList.add("wonO");
+        }
+
+        function updateUI() {
+            statusText.textContent = "Current Player: " + currentPlayer;
+
+            document.querySelectorAll(".big-cell").forEach((el, i) => {
+                el.classList.remove("active");
+
+                if (nextBoard === null || nextBoard === i) {
+                    if (!boardWinners[i]) el.classList.add("active");
+                }
+            });
+        }
+
+        function undo() {
+            if (history.length === 0 || gameOver) return;
+
+            const last = history.pop();
+
+            boards[last.b][last.c] = "";
+            const cell = game.children[last.b].children[last.c];
+            cell.textContent = "";
+
+            boardWinners[last.b] = null;
+            game.children[last.b].classList.remove("wonX", "wonO", "disabled");
+
+            currentPlayer = last.player;
+            nextBoard = last.prevNextBoard;
+            gameOver = false;
+
+            updateUI();
+        }
+
+        function resetGame() {
+            boards = Array(9).fill().map(() => Array(9).fill(""));
+            boardWinners = Array(9).fill(null);
+            nextBoard = null;
+            currentPlayer = "X";
+            gameOver = false;
+            history = [];
+
+            renderBoard();
+        }
+
+        function renderBoard() {
+            for (let b = 0; b < 9; b++) {
+                for (let c = 0; c < 9; c++) {
+                    game.children[b].children[c].textContent = "";
+                }
+                game.children[b].classList.remove("wonX", "wonO", "disabled", "active");
+            }
+
+            updateUI();
+        }
+
+        function goHome() {
+            window.location.href = "index.html";
+        }
+
+        updateUI();
+    </script>
+
+</body>
+
+</html>

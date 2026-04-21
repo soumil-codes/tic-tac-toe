@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How to Play</title>
+
+<style>
+body {
+  margin: 0;
+  font-family: 'Segoe UI', sans-serif;
+  background: linear-gradient(135deg, #0f172a, #020617);
+  color: white;
+}
+
+.container {
+  max-width: 800px;
+  margin: auto;
+  padding: 25px;
+}
+
+h1 {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.card {
+  background: rgba(30,41,59,0.8);
+  padding: 18px;
+  border-radius: 12px;
+  margin-bottom: 15px;
+  box-shadow: 0 0 15px rgba(0,0,0,0.4);
+}
+
+h2 {
+  margin-top: 0;
+  color: #22c55e;
+}
+
+ul {
+  padding-left: 20px;
+}
+
+li {
+  margin-bottom: 6px;
+}
+
+.highlight {
+  color: #4ade80;
+  font-weight: bold;
+}
+
+button {
+  display: block;
+  margin: 30px auto;
+  padding: 12px 25px;
+  font-size: 16px;
+  background: #22c55e;
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #16a34a;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+  <h1>How to Play</h1>
+
+  <div class="card">
+    <h2>🎯 Goal</h2>
+    <p>
+      Win the <span class="highlight">big board</span> by winning 
+      <span class="highlight">3 small boards in a row</span>.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>🧩 Game Layout</h2>
+    <p>
+      The game is made of <b>9 small tic tac toe boards</b> arranged in a 3×3 grid.
+    </p>
+    <ul>
+      <li>Each small board is a normal tic tac toe</li>
+      <li>The big board tracks which player wins each small board</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>🎮 How Moves Work</h2>
+    <ul>
+      <li>You place your mark (X or O) in a small cell</li>
+      <li><b>Your move decides where your opponent must play next</b></li>
+      <li>If you play in position <span class="highlight">5</span>, opponent must play in board <span class="highlight">5</span></li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>🔄 Special Case</h2>
+    <p>If the target board is:</p>
+    <ul>
+      <li>Already <b>won</b> OR</li>
+      <li>Completely <b>full</b></li>
+    </ul>
+    <p>
+      👉 Then the next player can play <span class="highlight">anywhere</span>
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>🏆 Winning</h2>
+    <ul>
+      <li>Win a small board → you claim that board</li>
+      <li>Win 3 small boards in a row → you win the game 🎉</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>🧪 Game Modes</h2>
+    <ul>
+      <li><b>Pass & Play</b> → play locally on one device</li>
+      <li><b>Multiplayer</b> → play online with a room code</li>
+      <li><b>Sandbox</b> → no rules, just free play</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>💡 Quick Tip</h2>
+    <p>
+      Think ahead! Every move you make controls where your opponent plays next.
+    </p>
+  </div>
+
+  <button onclick="goHome()">Back to Home</button>
+</div>
+
+<script>
+function goHome() {
+  window.location.href = "index.html";
+}
+</script>
+
+</body>
+</html>

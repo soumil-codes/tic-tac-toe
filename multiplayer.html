@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multiplayer</title>
+    <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/566/566294.png">
+
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', sans-serif;
+            background: #0f172a;
+            color: white;
+            text-align: center;
+        }
+
+        h1 {
+            margin: 10px;
+        }
+
+        #status {
+            margin: 10px;
+            font-size: 18px;
+        }
+
+        #game {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            width: 95vw;
+            max-width: 600px;
+            margin: auto;
+        }
+
+        .big-cell {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 4px;
+            padding: 4px;
+            background: #1e293b;
+            border-radius: 10px;
+        }
+
+        .big-cell.active {
+            outline: 3px solid #22c55e;
+        }
+
+        .big-cell.wonX {
+            background: rgba(59, 130, 246, 0.3);
+        }
+
+        .big-cell.wonO {
+            background: rgba(244, 63, 94, 0.3);
+        }
+
+        .small-cell {
+            aspect-ratio: 1;
+            background: #020617;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.6rem;
+            cursor: pointer;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .small-cell:hover {
+            background: #334155;
+        }
+
+        .disabled {
+            pointer-events: none;
+            opacity: 0.5;
+        }
+
+        button {
+            margin: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            background: #22c55e;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            color: black;
+            font-weight: bold;
+        }
+
+        button:hover {
+            background: #16a34a;
+        }
+
+        .last-move {
+            outline: 3px solid rgba(255, 255, 0, 0.187);
+            background: rgba(255, 255, 0, 0.2);
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Multiplayer</h1>
+    <div id="status">Connecting...</div>
+    <div id="playersBar"></div>
+    <div id="game"></div>
+
+    <button id="undoBtn">Undo</button>
+    <button id="resetBtn">Reset</button>
+    <button id="homeBtn">Home</button>
+
+    <div id="overlay" style="
+            position: fixed;
+            top:0; left:0;
+            width:100%; height:100%;
+            background: rgba(0,0,0,0.8);
+            display:none;
+            justify-content:center;
+            align-items:center;
+            flex-direction:column;
+            z-index:10;
+            ">
+        <h2 id="winnerText"></h2>
+        <button id="viewBoardBtn">View Board</button>
+        <button id="overlayHomeBtn">Home</button>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+        import { getDatabase, ref, set, onValue }
+            from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBPMx8C4OavgwkDPfOAc-PEJz_JZuQkPAg",
+            authDomain: "tic-tac-toe-3953c.firebaseapp.com",
+            databaseURL: "https://tic-tac-toe-3953c-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "tic-tac-toe-3953c"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // 📌 URL params
+        const params = new URLSearchParams(window.location.search);
+        const roomId = params.get("room");
+        const username = params.get("user");
+
+        if (!roomId || !username) {
+            alert("Invalid access");
+            window.location.href = "index.html";
+        }
+
+        // 📌 DOM
+        const game = document.getElementById("game");
+        const statusText = document.getElementById("status");
+
+        // 📌 STATE
+        let currentPlayer = "X";
+        let boards = Array(9).fill().map(() => Array(9).fill(""));
+        let boardWinners = Array(9).fill(null);
+        let nextBoard = null;
+        let history = [];
+        let gameOver = false;
+
+        let mySymbol = null;
+        let playerReady = false;
+        let gameReady = false;
+        let ready = false;
+        let assigned = false;
+        let lastMove = null;
+
+        // 📌 WIN PATTERNS
+        const wins = [
+            [0, 1, 2], [3, 4, 5], [6, 7, 8],
+            [0, 3, 6], [1, 4, 7], [2, 5, 8],
+            [0, 4, 8], [2, 4, 6]
+        ];
+
+        // 📌 CREATE GRID
+        for (let i = 0; i < 9; i++) {
+            const big = document.createElement("div");
+            big.classList.add("big-cell");
+
+            for (let j = 0; j < 9; j++) {
+                const small = document.createElement("div");
+                small.classList.add("small-cell");
+
+                small.onclick = () => handleMove(i, j, small);
+
+                big.appendChild(small);
+            }
+
+            game.appendChild(big);
+        }
+
+        // 🧠 PLAYER ASSIGNMENT
+        const playerRef = ref(db, "rooms/" + roomId + "/players");
+        let playersdata = {};
+
+        onValue(playerRef, (snapshot) => {
+            const players = snapshot.val() || {};
+            playersdata = players
+
+            // already one of the players
+            if (players.X === username) {
+                mySymbol = "X";
+                assigned = true;
+            }
+            else if (players.O === username) {
+                mySymbol = "O";
+                assigned = true;
+            }
+
+            // assign ONLY if not assigned yet
+            if (!assigned) {
+                if (!players.X) {
+                    mySymbol = "X";
+                    assigned = true;
+                    set(ref(db, "rooms/" + roomId + "/players/X"), username);
+                }
+                else if (!players.O) {
+                    mySymbol = "O";
+                    assigned = true;
+                    set(ref(db, "rooms/" + roomId + "/players/O"), username);
+                }
+                else {
+                    // 👀 spectator mode
+                    mySymbol = null;
+                    assigned = true;
+                }
+            }
+
+            playerReady = true;
+            ready = playerReady && gameReady;
+            updateUI();
+        });
+
+        // 🔄 GAME SYNC
+        onValue(ref(db, "rooms/" + roomId), (snapshot) => {
+            const data = snapshot.val();
+            if (!data) return;
+
+            const rawBoards = data.boards || {};
+            const rawWinners = data.boardWinners || {};
+
+            boards = Array.from({ length: 9 }, (_, b) =>
+                Array.from({ length: 9 }, (_, c) => (rawBoards[b] ?? {})[c] ?? "")
+            );
+
+            boardWinners = Array.from({ length: 9 }, (_, i) => rawWinners[i] ?? null);
+
+            currentPlayer = data.currentPlayer || currentPlayer;
+            nextBoard = data.nextBoard ?? null;
+            gameOver = data.gameOver || false;
+            lastMove = data.lastMove || null;
+            history = data.history || [];
+
+            renderBoard();
+
+            gameReady = true;
+            ready = playerReady && gameReady;
+            updateUI();
+        });
+
+        // 🎮 MOVE
+        function handleMove(b, c, cellEl) {
+            if (gameOver) return;
+            if (!mySymbol) return; // spectator can't play
+            if (!ready) return;
+            if (currentPlayer !== mySymbol) return;
+            if (boards[b][c] !== "") return;
+            if (nextBoard !== null && nextBoard !== b) return;
+
+            history.push({
+                b,
+                c,
+                player: currentPlayer,
+                prevNextBoard: nextBoard
+            });
+
+            boards[b][c] = currentPlayer;
+            cellEl.textContent = currentPlayer;
+
+            // remove previous highlight
+            if (lastMove) {
+                const prev = game.children[lastMove.b].children[lastMove.c];
+                prev.classList.remove("last-move");
+            }
+
+            // set new highlight
+            cellEl.classList.add("last-move");
+
+            // store last move
+            lastMove = { b, c };
+
+            // SMALL BOARD WIN
+            if (checkWin(boards[b])) {
+                boardWinners[b] = currentPlayer;
+                updateBoardUI(b);
+            }
+
+            // 🔥 BIG BOARD WIN (IMPORTANT FIX)
+            if (checkWin(boardWinners)) {
+                gameOver = true;
+
+                // show overlay immediately
+                showWin(currentPlayer);
+
+                // sync final state
+                set(ref(db, "rooms/" + roomId), {
+                    boards,
+                    currentPlayer,
+                    nextBoard,
+                    boardWinners,
+                    gameOver,
+                    lastMove,
+                    history
+                });
+
+                return; // 🚨 CRITICAL: stop further execution
+            }
+
+            // NEXT BOARD LOGIC
+            const targetWon = boardWinners[c] != null;
+            const targetFull = boards[c].every(x => x !== "");
+            nextBoard = (targetWon || targetFull) ? null : c;
+
+            // SWITCH PLAYER
+            currentPlayer = currentPlayer === "X" ? "O" : "X";
+
+            // SYNC TO FIREBASE
+            set(ref(db, "rooms/" + roomId), {
+                boards,
+                currentPlayer,
+                nextBoard,
+                boardWinners,
+                gameOver,
+                lastMove,
+                history
+            });
+        }
+
+        function undo() {
+            if (!ready || history.length === 0) return;
+
+            // 🔥 undo LAST move globally
+            history.pop();
+
+            // 🔥 reset entire board (rebuild from history)
+            boards = Array(9).fill().map(() => Array(9).fill(""));
+            boardWinners = Array(9).fill(null);
+
+            // 🔁 replay all moves
+            history.forEach(move => {
+                boards[move.b][move.c] = move.player;
+
+                // recompute small board wins
+                if (checkWin(boards[move.b])) {
+                    boardWinners[move.b] = move.player;
+                }
+            });
+
+            // 🔥 restore last move highlight
+            lastMove = history.length > 0
+                ? { b: history[history.length - 1].b, c: history[history.length - 1].c }
+                : null;
+
+            // 🔥 restore turn + next board
+            if (history.length > 0) {
+                const last = history[history.length - 1];
+                currentPlayer = last.player === "X" ? "O" : "X";
+                nextBoard = last.prevNextBoard;
+            } else {
+                currentPlayer = "X";
+                nextBoard = null;
+            }
+
+            gameOver = false;
+
+            // 🔥 sync everything
+            set(ref(db, "rooms/" + roomId), {
+                boards,
+                currentPlayer,
+                nextBoard,
+                boardWinners,
+                gameOver,
+                lastMove,
+                history
+            });
+        }
+
+        function resetGame() {
+            boards = Array(9).fill().map(() => Array(9).fill(""));
+            boardWinners = Array(9).fill(null);
+            nextBoard = null;
+            currentPlayer = "X";
+            gameOver = false;
+            history = [];
+
+            document.getElementById("overlay").style.display = "none";
+
+            set(ref(db, "rooms/" + roomId), {
+                boards,
+                currentPlayer,
+                nextBoard,
+                boardWinners,
+                gameOver,
+                lastMove,
+                history
+            });
+        }
+
+        // 🧠 HELPERS
+        function checkWin(arr) {
+            return wins.some(([a, b, c]) =>
+                arr[a] && arr[a] === arr[b] && arr[a] === arr[c]
+            );
+        }
+
+        function updateBoardUI(index) {
+            const big = game.children[index];
+            big.classList.add("disabled");
+
+            if (boardWinners[index] === "X") big.classList.add("wonX");
+            if (boardWinners[index] === "O") big.classList.add("wonO");
+        }
+
+        function renderBoard() {
+            for (let b = 0; b < 9; b++) {
+                const big = game.children[b];
+                big.classList.remove("wonX", "wonO", "disabled", "active");
+
+                for (let c = 0; c < 9; c++) {
+                    big.children[c].textContent = boards[b][c];
+                }
+
+                if (boardWinners[b] != null) updateBoardUI(b);
+            }
+            // remove all highlights first
+            document.querySelectorAll(".last-move").forEach(el =>
+                el.classList.remove("last-move")
+            );
+
+            // apply latest highlight
+            if (lastMove) {
+                const cell = game.children[lastMove.b].children[lastMove.c];
+                if (cell) cell.classList.add("last-move");
+            }
+        }
+
+        function updateUI() {
+            if (!ready) {
+                statusText.textContent = "Connecting...";
+            }
+            else if (!mySymbol) {
+                statusText.textContent = "Spectating 👀";
+            }
+            else {
+                statusText.textContent = `You are ${mySymbol} | Turn: ${currentPlayer}`;
+            }
+
+            document.querySelectorAll(".big-cell").forEach((el, i) => {
+                el.classList.remove("active");
+                if (nextBoard === null || nextBoard === i) {
+                    if (!boardWinners[i]) el.classList.add("active");
+                }
+            });
+        }
+
+        function showWin(winner) {
+            document.getElementById("overlay").style.display = "flex";
+            document.getElementById("winnerText").textContent = winner + " Wins!";
+        }
+
+        function closeOverlay() {
+            document.getElementById("overlay").style.display = "none";
+        }
+
+        function goHome() {
+            window.location.href = "index.html";
+        }
+        document.getElementById("undoBtn").onclick = undo;
+        document.getElementById("resetBtn").onclick = resetGame;
+        document.getElementById("homeBtn").onclick = goHome;
+        document.getElementById("viewBoardBtn").onclick = closeOverlay;
+        document.getElementById("overlayHomeBtn").onclick = goHome;
+    </script>
+
+</body>
+
+</html>

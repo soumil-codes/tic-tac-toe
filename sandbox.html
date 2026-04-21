@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sandbox Mode</title>
+<link rel="icon" href="https://cdn-icons-png.flaticon.com/512/566/566294.png">
+
+<style>
+body {
+  margin: 0;
+  font-family: 'Segoe UI', sans-serif;
+  background: #0f172a;
+  color: white;
+  text-align: center;
+}
+
+h1 {
+  margin: 10px;
+}
+
+#status {
+  margin: 10px;
+  font-size: 18px;
+}
+
+#game {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  width: 95vw;
+  max-width: 600px;
+  margin: auto;
+}
+
+.big-cell {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 4px;
+  background: #1e293b;
+  border-radius: 10px;
+}
+
+.small-cell {
+  aspect-ratio: 1;
+  background: #020617;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 1.6rem;
+  cursor: pointer;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.small-cell:hover {
+  background: #334155;
+}
+
+button {
+  margin: 10px;
+  padding: 10px 20px;
+  font-size: 16px;
+  background: #22c55e;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  color: black;
+  font-weight: bold;
+}
+
+button:hover {
+  background: #16a34a;
+}
+</style>
+</head>
+
+<body>
+
+<h1>Sandbox Mode</h1>
+<div id="status">Current Player: X</div>
+
+<div id="game"></div>
+
+<button onclick="undo()">Undo</button>
+<button onclick="resetGame()">Reset</button>
+<button onclick="goHome()">Home</button>
+
+<script>
+const game = document.getElementById("game");
+const statusText = document.getElementById("status");
+
+let currentPlayer = "X";
+let boards = Array(9).fill().map(() => Array(9).fill(""));
+let history = [];
+
+// CREATE GRID
+for (let i = 0; i < 9; i++) {
+  const big = document.createElement("div");
+  big.classList.add("big-cell");
+
+  for (let j = 0; j < 9; j++) {
+    const small = document.createElement("div");
+    small.classList.add("small-cell");
+
+    small.addEventListener("click", () => {
+      handleMove(i, j, small);
+    });
+
+    big.appendChild(small);
+  }
+
+  game.appendChild(big);
+}
+
+function handleMove(b, c, cellEl) {
+  if (boards[b][c] !== "") return;
+
+  // store history (no nextBoard needed here)
+  history.push({
+    b,
+    c,
+    player: currentPlayer
+  });
+
+  boards[b][c] = currentPlayer;
+  cellEl.textContent = currentPlayer;
+
+  currentPlayer = currentPlayer === "X" ? "O" : "X";
+  updateUI();
+}
+
+function undo() {
+  if (history.length === 0) return;
+
+  const last = history.pop();
+
+  boards[last.b][last.c] = "";
+  const cell = game.children[last.b].children[last.c];
+  cell.textContent = "";
+
+  currentPlayer = last.player;
+  updateUI();
+}
+
+function resetGame() {
+  boards = Array(9).fill().map(() => Array(9).fill(""));
+  currentPlayer = "X";
+  history = [];
+
+  renderBoard();
+}
+
+function renderBoard() {
+  for (let b = 0; b < 9; b++) {
+    for (let c = 0; c < 9; c++) {
+      game.children[b].children[c].textContent = "";
+    }
+  }
+  updateUI();
+}
+
+function updateUI() {
+  statusText.textContent = "Current Player: " + currentPlayer;
+}
+
+function goHome() {
+  window.location.href = "index.html";
+}
+
+updateUI();
+</script>
+
+</body>
+</html>
