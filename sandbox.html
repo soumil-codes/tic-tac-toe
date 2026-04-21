@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sandbox Mode</title>
+
 <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/566/566294.png">
 
 <style>
@@ -52,10 +53,28 @@ h1 {
   cursor: pointer;
   border-radius: 6px;
   overflow: hidden;
+  font-weight: bold;
 }
 
 .small-cell:hover {
   background: #334155;
+}
+
+/* 🔴 X */
+.cell-x {
+  color: #f43f5e;
+  box-shadow: 0px 0px 8px #f43f5e inset;
+}
+
+/* 🔵 O */
+.cell-o {
+  color: #3b82f6;
+  box-shadow: 0px 0px 8px #3b82f6 inset;
+}
+
+/* ✨ last move */
+.last-move {
+  outline: 3px solid rgba(255,255,255,0.4);
 }
 
 button {
@@ -94,6 +113,7 @@ const statusText = document.getElementById("status");
 let currentPlayer = "X";
 let boards = Array(9).fill().map(() => Array(9).fill(""));
 let history = [];
+let lastMove = null;
 
 // CREATE GRID
 for (let i = 0; i < 9; i++) {
@@ -114,57 +134,99 @@ for (let i = 0; i < 9; i++) {
   game.appendChild(big);
 }
 
+// MOVE
 function handleMove(b, c, cellEl) {
   if (boards[b][c] !== "") return;
 
-  // store history (no nextBoard needed here)
-  history.push({
-    b,
-    c,
-    player: currentPlayer
-  });
+  history.push({ b, c, player: currentPlayer });
 
   boards[b][c] = currentPlayer;
   cellEl.textContent = currentPlayer;
 
+  // color
+  cellEl.classList.remove("cell-x", "cell-o");
+  cellEl.classList.add(currentPlayer === "X" ? "cell-x" : "cell-o");
+
+  // last move highlight
+  if (lastMove) {
+    const prev = game.children[lastMove.b].children[lastMove.c];
+    prev.classList.remove("last-move");
+  }
+
+  cellEl.classList.add("last-move");
+  lastMove = { b, c };
+
+  // switch player
   currentPlayer = currentPlayer === "X" ? "O" : "X";
+
   updateUI();
 }
 
+// UNDO
 function undo() {
   if (history.length === 0) return;
 
   const last = history.pop();
 
   boards[last.b][last.c] = "";
+
   const cell = game.children[last.b].children[last.c];
   cell.textContent = "";
+  cell.classList.remove("cell-x", "cell-o", "last-move");
+
+  // restore last move highlight
+  lastMove = history.length
+    ? { b: history.at(-1).b, c: history.at(-1).c }
+    : null;
+
+  if (lastMove) {
+    const prev = game.children[lastMove.b].children[lastMove.c];
+    prev.classList.add("last-move");
+  }
 
   currentPlayer = last.player;
+
   updateUI();
 }
 
+// RESET
 function resetGame() {
   boards = Array(9).fill().map(() => Array(9).fill(""));
   currentPlayer = "X";
   history = [];
+  lastMove = null;
 
   renderBoard();
 }
 
+// RENDER
 function renderBoard() {
   for (let b = 0; b < 9; b++) {
     for (let c = 0; c < 9; c++) {
-      game.children[b].children[c].textContent = "";
+      const cell = game.children[b].children[c];
+
+      cell.textContent = boards[b][c];
+      cell.classList.remove("cell-x", "cell-o", "last-move");
+
+      if (boards[b][c] === "X") cell.classList.add("cell-x");
+      if (boards[b][c] === "O") cell.classList.add("cell-o");
     }
   }
+
+  if (lastMove) {
+    const cell = game.children[lastMove.b].children[lastMove.c];
+    cell.classList.add("last-move");
+  }
+
   updateUI();
 }
 
+// UI
 function updateUI() {
   statusText.textContent = "Current Player: " + currentPlayer;
 }
 
+// NAV
 function goHome() {
   window.location.href = "index.html";
 }

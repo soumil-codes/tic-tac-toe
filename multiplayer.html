@@ -47,11 +47,11 @@
             outline: 3px solid #22c55e;
         }
 
-        .big-cell.wonX {
+        .big-cell.wonO {
             background: rgba(59, 130, 246, 0.3);
         }
 
-        .big-cell.wonO {
+        .big-cell.wonX {
             background: rgba(244, 63, 94, 0.3);
         }
 
@@ -65,6 +65,7 @@
             cursor: pointer;
             border-radius: 6px;
             overflow: hidden;
+            font-weight: bold;
         }
 
         .small-cell:hover {
@@ -73,7 +74,7 @@
 
         .disabled {
             pointer-events: none;
-            opacity: 0.5;
+            opacity: 0.6;
         }
 
         button {
@@ -93,8 +94,52 @@
         }
 
         .last-move {
-            outline: 3px solid rgba(255, 255, 0, 0.187);
-            background: rgba(255, 255, 0, 0.2);
+            outline: 3px solid rgba(255, 255, 255, 0.429);
+            /* background: rgba(255, 255, 255, 0.062); */
+        }
+
+        .big-cell {
+            position: relative;
+        }
+
+        .big-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 12rem;
+            font-weight: bold;
+            pointer-events: none;
+            margin-bottom: 20px;
+        }
+
+        .big-overlay.o {
+            color: rgba(59, 130, 246, 1);
+            text-shadow: 0 0 15px rgba(59, 130, 246, 1);
+        }
+
+        .big-overlay.x {
+            color: rgba(244, 63, 94, 1);
+            text-shadow: 0 0 15px rgba(244, 63, 94, 1);
+        }
+
+        .cell-x {
+            color: #f43f5e;
+            box-shadow: 0px 0px 8px #f43f5e inset;
+            /* red */
+        }
+        
+        .cell-o {
+            color: #3b82f6;
+            box-shadow: 0px 0px 8px #3b82f6 inset;
+            /* blue */
+        }
+
+        @media (width < 600px) {
+            .big-overlay {
+                font-size: 8rem;
+            }
         }
     </style>
 </head>
@@ -282,6 +327,16 @@
             boards[b][c] = currentPlayer;
             cellEl.textContent = currentPlayer;
 
+            // remove old classes (important for undo/reset)
+            cellEl.classList.remove("cell-x", "cell-o");
+
+            // add new color
+            if (currentPlayer === "X") {
+                cellEl.classList.add("cell-x");
+            } else {
+                cellEl.classList.add("cell-o");
+            }
+
             // remove previous highlight
             if (lastMove) {
                 const prev = game.children[lastMove.b].children[lastMove.c];
@@ -369,8 +424,15 @@
             // 🔥 restore turn + next board
             if (history.length > 0) {
                 const last = history[history.length - 1];
+
+                // whose turn now
                 currentPlayer = last.player === "X" ? "O" : "X";
-                nextBoard = last.prevNextBoard;
+
+                // 🔥 CORRECT next board calculation
+                const targetWon = boardWinners[last.c] != null;
+                const targetFull = boards[last.c].every(x => x !== "");
+
+                nextBoard = (targetWon || targetFull) ? null : last.c;
             } else {
                 currentPlayer = "X";
                 nextBoard = null;
@@ -420,29 +482,65 @@
 
         function updateBoardUI(index) {
             const big = game.children[index];
+
             big.classList.add("disabled");
 
-            if (boardWinners[index] === "X") big.classList.add("wonX");
-            if (boardWinners[index] === "O") big.classList.add("wonO");
+            // remove old overlay if any
+            const existing = big.querySelector(".big-overlay");
+            if (existing) existing.remove();
+
+            const winner = boardWinners[index];
+
+            if (winner === "X" || winner === "O") {
+                const overlay = document.createElement("div");
+                overlay.classList.add("big-overlay", winner.toLowerCase());
+                overlay.textContent = winner;
+
+                big.appendChild(overlay);
+            }
+
+            if (winner === "X") big.classList.add("wonX");
+            if (winner === "O") big.classList.add("wonO");
         }
 
         function renderBoard() {
             for (let b = 0; b < 9; b++) {
                 const big = game.children[b];
+
+                // 🔥 remove all board states
                 big.classList.remove("wonX", "wonO", "disabled", "active");
 
+                // 🔥 remove big overlay (CRITICAL FIX)
+                const overlay = big.querySelector(".big-overlay");
+                if (overlay) overlay.remove();
+
+                // 🔁 reset small cells
                 for (let c = 0; c < 9; c++) {
-                    big.children[c].textContent = boards[b][c];
+                    const cell = big.children[c];
+                    cell.textContent = boards[b][c];
+
+                    // reset classes
+                    cell.classList.remove("cell-x", "cell-o");
+
+                    if (boards[b][c] === "X") {
+                        cell.classList.add("cell-x");
+                    }
+                    if (boards[b][c] === "O") {
+                        cell.classList.add("cell-o");
+                    }
                 }
 
-                if (boardWinners[b] != null) updateBoardUI(b);
+                // 🔁 reapply winner if exists
+                if (boardWinners[b]) {
+                    updateBoardUI(b);
+                }
             }
-            // remove all highlights first
+
+            // 🔥 reset last move highlight
             document.querySelectorAll(".last-move").forEach(el =>
                 el.classList.remove("last-move")
             );
 
-            // apply latest highlight
             if (lastMove) {
                 const cell = game.children[lastMove.b].children[lastMove.c];
                 if (cell) cell.classList.add("last-move");

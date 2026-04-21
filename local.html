@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pass & Play</title>
+
     <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/566/566294.png">
 
     <style>
@@ -41,18 +42,19 @@
             padding: 4px;
             background: #1e293b;
             border-radius: 10px;
+            position: relative;
+        }
+
+        .big-cell.wonX {
+            background: rgba(245, 56, 88, 0.5);
+        }
+
+        .big-cell.wonO {
+            background: rgba(52, 120, 230, 0.5);
         }
 
         .big-cell.active {
             outline: 3px solid #22c55e;
-        }
-
-        .big-cell.wonX {
-            background: rgba(59, 130, 246, 0.3);
-        }
-
-        .big-cell.wonO {
-            background: rgba(244, 63, 94, 0.3);
         }
 
         .small-cell {
@@ -73,7 +75,7 @@
 
         .disabled {
             pointer-events: none;
-            opacity: 0.5;
+            opacity: 0.7;
         }
 
         button {
@@ -91,6 +93,68 @@
         button:hover {
             background: #16a34a;
         }
+
+        /* last move */
+        .last-move {
+            outline: 3px solid rgba(255, 255, 255, 0.4);
+            transform: scale(1.05);
+        }
+
+        /* BIG WIN OVERLAY */
+        .big-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 12rem;
+            font-weight: bold;
+            pointer-events: none;
+            margin-bottom: 20px;
+        }
+
+        .big-overlay.x {
+            color: rgba(244, 63, 94, 0.7);
+            /* RED */
+            text-shadow: 0 0 15px rgba(244, 63, 94, 0.8);
+        }
+
+        .big-overlay.o {
+            color: rgba(59, 130, 246, 0.7);
+            /* BLUE */
+            text-shadow: 0 0 15px rgba(59, 130, 246, 0.8);
+        }
+
+        @media (max-width: 600px) {
+            .big-overlay {
+                font-size: 8rem;
+            }
+        }
+
+        /* WIN OVERLAY SCREEN */
+        #overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            z-index: 10;
+        }
+
+        .cell-x {
+            color: #f43f5e;
+            box-shadow: 0px 0px 8px #f43f5e inset;
+        }
+
+        .cell-o {
+            color: #3b82f6;
+            box-shadow: 0px 0px 8px #3b82f6 inset;
+        }
     </style>
 </head>
 
@@ -101,9 +165,15 @@
 
     <div id="game"></div>
 
-    <button onclick="undo()">Undo</button>
-    <button onclick="resetGame()">Reset</button>
+    <button id="undoBtn">Undo</button>
+    <!-- <button id="resetBtn">Reset</button> -->
     <button onclick="goHome()">Home</button>
+
+    <div id="overlay">
+        <h2 id="winnerText"></h2>
+        <button id="viewBoardBtn">View Board</button>
+        <button id="overlayHomeBtn">Home</button>
+    </div>
 
     <script>
         const game = document.getElementById("game");
@@ -115,6 +185,7 @@
         let nextBoard = null;
         let history = [];
         let gameOver = false;
+        let lastMove = null;
 
         const wins = [
             [0, 1, 2], [3, 4, 5], [6, 7, 8],
@@ -131,9 +202,7 @@
                 const small = document.createElement("div");
                 small.classList.add("small-cell");
 
-                small.addEventListener("click", () => {
-                    handleMove(i, j, small);
-                });
+                small.onclick = () => handleMove(i, j, small);
 
                 big.appendChild(small);
             }
@@ -146,36 +215,44 @@
             if (boards[b][c] !== "") return;
             if (nextBoard !== null && nextBoard !== b) return;
 
+            history.push({ b, c, player: currentPlayer, prevNextBoard: nextBoard });
+
             boards[b][c] = currentPlayer;
             cellEl.textContent = currentPlayer;
 
-            history.push({
-                b,
-                c,
-                player: currentPlayer,
-                prevNextBoard: nextBoard
-            });
+            // 🔥 remove old color (important for undo/re-render)
+            cellEl.classList.remove("cell-x", "cell-o");
 
-            // small win
+            // 🔥 apply new color
+            if (currentPlayer === "X") {
+                cellEl.classList.add("cell-x");
+            } else {
+                cellEl.classList.add("cell-o");
+            }
+
+            // last move highlight
+            if (lastMove) {
+                game.children[lastMove.b].children[lastMove.c].classList.remove("last-move");
+            }
+            cellEl.classList.add("last-move");
+            lastMove = { b, c };
+
             if (checkWin(boards[b])) {
                 boardWinners[b] = currentPlayer;
                 updateBoardUI(b);
             }
 
-            // big win
             if (checkWin(boardWinners)) {
-                statusText.textContent = currentPlayer + " WINS 🎉";
                 gameOver = true;
+                showWin(currentPlayer);
                 return;
             }
 
-            // next board
             const targetWon = boardWinners[c] != null;
             const targetFull = boards[c].every(x => x !== "");
             nextBoard = (targetWon || targetFull) ? null : c;
 
             currentPlayer = currentPlayer === "X" ? "O" : "X";
-
             updateUI();
         }
 
@@ -189,8 +266,20 @@
             const big = game.children[index];
             big.classList.add("disabled");
 
-            if (boardWinners[index] === "X") big.classList.add("wonX");
-            if (boardWinners[index] === "O") big.classList.add("wonO");
+            const existing = big.querySelector(".big-overlay");
+            if (existing) existing.remove();
+
+            const winner = boardWinners[index];
+
+            if (winner) {
+                const overlay = document.createElement("div");
+                overlay.classList.add("big-overlay", winner.toLowerCase());
+                overlay.textContent = winner;
+                big.appendChild(overlay);
+            }
+
+            if (winner === "X") big.classList.add("wonX");
+            if (winner === "O") big.classList.add("wonO");
         }
 
         function updateUI() {
@@ -199,29 +288,46 @@
             document.querySelectorAll(".big-cell").forEach((el, i) => {
                 el.classList.remove("active");
 
-                if (nextBoard === null || nextBoard === i) {
-                    if (!boardWinners[i]) el.classList.add("active");
+                if ((nextBoard === null || nextBoard === i) && !boardWinners[i]) {
+                    el.classList.add("active");
                 }
             });
         }
 
+        // 🔥 FIXED UNDO
         function undo() {
-            if (history.length === 0 || gameOver) return;
+            if (history.length === 0) return;
 
-            const last = history.pop();
+            history.pop();
 
-            boards[last.b][last.c] = "";
-            const cell = game.children[last.b].children[last.c];
-            cell.textContent = "";
+            boards = Array(9).fill().map(() => Array(9).fill(""));
+            boardWinners = Array(9).fill(null);
 
-            boardWinners[last.b] = null;
-            game.children[last.b].classList.remove("wonX", "wonO", "disabled");
+            history.forEach(move => {
+                boards[move.b][move.c] = move.player;
+                if (checkWin(boards[move.b])) {
+                    boardWinners[move.b] = move.player;
+                }
+            });
 
-            currentPlayer = last.player;
-            nextBoard = last.prevNextBoard;
+            lastMove = history.length > 0
+                ? { b: history[history.length - 1].b, c: history[history.length - 1].c }
+                : null;
+
+            if (history.length > 0) {
+                const last = history[history.length - 1];
+                currentPlayer = last.player === "X" ? "O" : "X";
+                const targetWon = boardWinners[last.c] != null;
+                const targetFull = boards[last.c].every(x => x !== "");
+
+                nextBoard = (targetWon || targetFull) ? null : last.c;
+            } else {
+                currentPlayer = "X";
+                nextBoard = null;
+            }
+
             gameOver = false;
-
-            updateUI();
+            renderBoard();
         }
 
         function resetGame() {
@@ -231,24 +337,68 @@
             currentPlayer = "X";
             gameOver = false;
             history = [];
+            lastMove = null;
 
+            document.getElementById("overlay").style.display = "none";
             renderBoard();
         }
 
         function renderBoard() {
             for (let b = 0; b < 9; b++) {
+                const big = game.children[b];
+                // 🔥 remove ALL previous UI state
+                big.classList.remove("disabled", "active", "wonX", "wonO");
+
+                // 🔥 remove big overlay (THIS FIXES YOUR ISSUE)
+                const overlay = big.querySelector(".big-overlay");
+                if (overlay) overlay.remove();
+
+
                 for (let c = 0; c < 9; c++) {
-                    game.children[b].children[c].textContent = "";
+                    const cell = big.children[c];
+
+                    cell.textContent = boards[b][c];
+
+                    // remove ALL visual states
+                    cell.classList.remove("cell-x", "cell-o", "last-move");
+
+                    // reapply color
+                    if (boards[b][c] === "X") {
+                        cell.classList.add("cell-x");
+                    }
+                    if (boards[b][c] === "O") {
+                        cell.classList.add("cell-o");
+                    }
                 }
-                game.children[b].classList.remove("wonX", "wonO", "disabled", "active");
+
+                if (boardWinners[b]) updateBoardUI(b);
+            }
+
+            if (lastMove) {
+                game.children[lastMove.b].children[lastMove.c].classList.add("last-move");
             }
 
             updateUI();
         }
 
+        function showWin(winner) {
+            document.getElementById("overlay").style.display = "flex";
+            document.getElementById("winnerText").textContent = winner + " Wins!";
+        }
+
+        function closeOverlay() {
+            document.getElementById("overlay").style.display = "none";
+        }
+
         function goHome() {
             window.location.href = "index.html";
         }
+
+        // buttons
+        document.getElementById("undoBtn").onclick = undo;
+        document.getElementById("resetBtn").onclick = resetGame;
+        document.getElementById("viewBoardBtn").onclick = closeOverlay;
+        document.getElementById("overlayHomeBtn").onclick = goHome;
 
         updateUI();
     </script>
