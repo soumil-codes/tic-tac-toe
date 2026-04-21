@@ -1,235 +1,384 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ultimate Tic Tac Toe</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ultimate Tic Tac Toe</title>
 
-<style>
-  body {
-    margin: 0;
-    font-family: 'Segoe UI', sans-serif;
-    background: #0f172a;
-    color: white;
-    text-align: center;
-  }
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', sans-serif;
+            background: #0f172a;
+            color: white;
+            text-align: center;
+        }
 
-  h1 {
-    margin: 10px;
-  }
+        h1 {
+            margin: 10px;
+        }
 
-  #status {
-    margin: 10px;
-    font-size: 18px;
-  }
+        #status {
+            margin: 10px;
+            font-size: 18px;
+        }
 
-  #game {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-    width: 95vw;
-    max-width: 600px;
-    margin: auto;
-  }
+        #game {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            width: 95vw;
+            max-width: 600px;
+            margin: auto;
+        }
 
-  .big-cell {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 4px;
-    padding: 4px;
-    background: #1e293b;
-    border-radius: 10px;
-    transition: transform 0.25s;
-  }
+        .big-cell {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 4px;
+            padding: 4px;
+            background: #1e293b;
+            border-radius: 10px;
+            transition: transform 0.25s;
+        }
 
-  .big-cell.active {
-    outline: 3px solid #22c55e;
-  }
+        .big-cell.active {
+            outline: 3px solid #22c55e;
+        }
 
-  .big-cell.wonX {
-    background: rgba(59,130,246,0.3);
-  }
+        .big-cell.wonX {
+            background: rgba(59, 130, 246, 0.3);
+        }
 
-  .big-cell.wonO {
-    background: rgba(244,63,94,0.3);
-  }
+        .big-cell.wonO {
+            background: rgba(244, 63, 94, 0.3);
+        }
 
-  .small-cell {
-    aspect-ratio: 1;
-    background: #020617;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-size: 1.6rem;
-    cursor: pointer;
-    border-radius: 6px;
-    overflow: hidden;
-  }
+        .small-cell {
+            aspect-ratio: 1;
+            background: #020617;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.6rem;
+            cursor: pointer;
+            border-radius: 6px;
+            overflow: hidden;
+        }
 
-  .small-cell:hover {
-    background: #334155;
-  }
+        .small-cell:hover {
+            background: #334155;
+        }
 
-  .disabled {
-    pointer-events: none;
-    opacity: 0.5;
-  }
+        .disabled {
+            pointer-events: none;
+            opacity: 0.5;
+        }
 
-  .zoomed {
-    transform: scale(1.6);
-    z-index: 5;
-  }
+        .zoomed {
+            transform: scale(1.6);
+            z-index: 5;
+        }
 
-  button {
-    margin: 15px;
-    padding: 10px 20px;
-    font-size: 16px;
-    background: #22c55e;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    color: black;
-    font-weight: bold;
-  }
+        button {
+            margin: 15px;
+            padding: 10px 20px;
+            font-size: 16px;
+            background: #22c55e;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            color: black;
+            font-weight: bold;
+        }
 
-  button:hover {
-    background: #16a34a;
-  }
-</style>
+        button:hover {
+            background: #16a34a;
+        }
+    </style>
 </head>
 
 <body>
 
-<h1>Ultimate Tic Tac Toe</h1>
-<div id="status">Current Player: X</div>
-<div id="game"></div>
-<button onclick="undo()">Undo</button>
+    <h1>Ultimate Tic Tac Toe</h1>
+    <div id="status">Current Player: X</div>
+    <div id="game"></div>
+    <button onclick="undo()">Undo</button>
+    <button onclick="resetGame()">Reset Game</button>
 
-<script>
-const game = document.getElementById("game");
-const statusText = document.getElementById("status");
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+        import { getDatabase, ref, set, onValue }
+            from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-let currentPlayer = "X";
-let history = [];
+        const firebaseConfig = {
+            apiKey: "AIzaSyBPMx8C4OavgwkDPfOAc-PEJz_JZuQkPAg",
+            authDomain: "tic-tac-toe-3953c.firebaseapp.com",
+            databaseURL: "https://tic-tac-toe-3953c-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "tic-tac-toe-3953c",
+            storageBucket: "tic-tac-toe-3953c.firebasestorage.app",
+            messagingSenderId: "408667684565",
+            appId: "1:408667684565:web:0eb5760ae57dcb24b62c5c"
+        };
 
-let boards = Array(9).fill().map(() => Array(9).fill(""));
-let boardWinners = Array(9).fill(null);
-let nextBoard = null;
-let gameOver = false;
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
 
-// WIN PATTERNS
-const wins = [
-  [0,1,2],[3,4,5],[6,7,8],
-  [0,3,6],[1,4,7],[2,5,8],
-  [0,4,8],[2,4,6]
-];
+        const params = new URLSearchParams(window.location.search);
+        let roomId = params.get("room");
 
-// CREATE UI
-for (let i = 0; i < 9; i++) {
-  const big = document.createElement("div");
-  big.classList.add("big-cell");
+        // ⭐ NEW: allow local mode
+        if (!roomId) {
+            const choice = prompt("Enter Room Code (Cancel = Local Play)");
 
-  big.addEventListener("click", (e) => {
-    if (e.target.classList.contains("small-cell")) return;
+            if (choice) {
+                window.location.search = "?room=" + choice;
+            }
+        }
 
-    document.querySelectorAll(".big-cell").forEach(c => c.classList.remove("zoomed"));
-    big.classList.toggle("zoomed");
-  });
+        // ⭐ NEW: detect mode
+        let localMode = !roomId;
 
-  for (let j = 0; j < 9; j++) {
-    const small = document.createElement("div");
-    small.classList.add("small-cell");
 
-    small.addEventListener("click", (e) => {
-      e.stopPropagation();
-      handleMove(i, j, small);
-    });
+        const game = document.getElementById("game");
+        const statusText = document.getElementById("status");
 
-    big.appendChild(small);
-  }
+        let currentPlayer = "X";
 
-  game.appendChild(big);
-}
 
-function handleMove(b, c, cellEl) {
-  if (gameOver) return;
-  if (boards[b][c] !== "") return;
 
-  if (nextBoard !== null && nextBoard !== b) return;
+        let mySymbol = localStorage.getItem("player_" + roomId) || null;
+        let ready = localMode; // local mode = always ready
 
-  boards[b][c] = currentPlayer;
-  cellEl.textContent = currentPlayer;
+        if (!localMode) {
+            const playerRef = ref(db, "rooms/" + roomId + "/players");
 
-  history.push({b, c, player: currentPlayer});
+            onValue(playerRef, (snapshot) => {
+                const players = snapshot.val() || {};
 
-  // CHECK SMALL WIN
-  if (checkWin(boards[b])) {
-    boardWinners[b] = currentPlayer;
-    updateBoardUI(b);
-  }
+                // ✅ If already assigned and still valid → just mark ready
+                if (mySymbol && players[mySymbol]) {
+                    ready = true;
+                    updateUI();
+                    return;
+                }
 
-  // CHECK BIG WIN
-  if (checkWin(boardWinners)) {
-    statusText.textContent = `${currentPlayer} WINS THE GAME 🎉`;
-    gameOver = true;
-    return;
-  }
+                // ✅ Try assigning
+                if (!mySymbol) {
+                    if (!players.X) {
+                        mySymbol = "X";
+                        set(ref(db, "rooms/" + roomId + "/players/X"), "taken");
+                    } else if (!players.O) {
+                        mySymbol = "O";
+                        set(ref(db, "rooms/" + roomId + "/players/O"), "taken");
+                    } else {
+                        alert("Room full!");
+                        return;
+                    }
 
-  // SET NEXT BOARD
-  nextBoard = boardWinners[c] || boards[c].every(x => x !== "") ? null : c;
+                    // save locally
+                    localStorage.setItem("player_" + roomId, mySymbol);
+                    console.log("Assigned:", mySymbol);
+                }
 
-  currentPlayer = currentPlayer === "X" ? "O" : "X";
-  updateUI();
-}
+                // ✅ IMPORTANT: mark ready AFTER assignment
+                ready = true;
+                updateUI();
+            });
+        }
 
-function checkWin(arr) {
-  return wins.some(([a,b,c]) =>
-    arr[a] && arr[a] === arr[b] && arr[a] === arr[c]
-  );
-}
+        let history = [];
 
-function updateBoardUI(index) {
-  const big = game.children[index];
-  big.classList.add("disabled");
+        let boards = Array(9).fill().map(() => Array(9).fill(""));
+        let boardWinners = Array(9).fill(null);
+        let nextBoard = null;
+        let gameOver = false;
 
-  if (boardWinners[index] === "X") big.classList.add("wonX");
-  if (boardWinners[index] === "O") big.classList.add("wonO");
-}
 
-function updateUI() {
-  statusText.textContent = `Current Player: ${currentPlayer}`;
 
-  document.querySelectorAll(".big-cell").forEach((el, i) => {
-    el.classList.remove("active");
+        // WIN PATTERNS
+        const wins = [
+            [0, 1, 2], [3, 4, 5], [6, 7, 8],
+            [0, 3, 6], [1, 4, 7], [2, 5, 8],
+            [0, 4, 8], [2, 4, 6]
+        ];
 
-    if (nextBoard === null || nextBoard === i) {
-      if (!boardWinners[i]) el.classList.add("active");
-    }
-  });
-}
+        // CREATE UI
+        for (let i = 0; i < 9; i++) {
+            const big = document.createElement("div");
+            big.classList.add("big-cell");
 
-function undo() {
-  if (history.length === 0 || gameOver) return;
+            for (let j = 0; j < 9; j++) {
+                const small = document.createElement("div");
+                small.classList.add("small-cell");
 
-  const last = history.pop();
+                small.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    handleMove(i, j, small);
+                });
 
-  boards[last.b][last.c] = "";
-  const cell = game.children[last.b].children[last.c];
-  cell.textContent = "";
+                big.appendChild(small);
+            }
 
-  boardWinners[last.b] = null;
-  game.children[last.b].classList.remove("wonX","wonO","disabled");
+            game.appendChild(big);
+        }
+        if (!localMode && mySymbol) {
+            statusText.textContent = `You are ${mySymbol} | Turn: ${currentPlayer}`;
+        }
 
-  currentPlayer = last.player;
-  gameOver = false;
-  nextBoard = null;
 
-  updateUI();
-}
+        function handleMove(b, c, cellEl) {
+            // ⭐ LOCK TURNS ONLY in multiplayer
+            if (!ready) return;
 
-// INITIAL UI
-updateUI();
-</script>
+            if (!localMode && currentPlayer !== mySymbol) return;
+            if (gameOver) return;
+            if (boards[b][c] !== "") return;
+
+            if (nextBoard !== null && nextBoard !== b) return;
+
+            boards[b][c] = currentPlayer;
+            cellEl.textContent = currentPlayer;
+
+            history.push({ b, c, player: currentPlayer });
+
+            // CHECK SMALL WIN
+            if (checkWin(boards[b])) {
+                boardWinners[b] = currentPlayer;
+                updateBoardUI(b);
+            }
+
+            // CHECK BIG WIN
+            if (checkWin(boardWinners)) {
+                statusText.textContent = `${currentPlayer} WINS THE GAME 🎉`;
+                gameOver = true;
+                return;
+            }
+
+            // SET NEXT BOARD
+            nextBoard = boardWinners[c] || boards[c].every(x => x !== "") ? null : c;
+
+            currentPlayer = currentPlayer === "X" ? "O" : "X";
+            updateUI();
+
+            if (!localMode) {
+                set(ref(db, "rooms/" + roomId), {
+                    boards,
+                    currentPlayer,
+                    nextBoard,
+                    boardWinners
+                });
+            }
+        }
+
+        function checkWin(arr) {
+            return wins.some(([a, b, c]) =>
+                arr[a] && arr[a] === arr[b] && arr[a] === arr[c]
+            );
+        }
+
+        function updateBoardUI(index) {
+            const big = game.children[index];
+            big.classList.add("disabled");
+
+            if (boardWinners[index] === "X") big.classList.add("wonX");
+            if (boardWinners[index] === "O") big.classList.add("wonO");
+        }
+
+        function updateUI() {
+            if (!localMode) {
+                if (!ready) {
+                    statusText.textContent = "Joining room...";
+                } else {
+                    statusText.textContent = `You are ${mySymbol} | Turn: ${currentPlayer}`;
+                }
+            } else {
+                statusText.textContent = `Current Player: ${currentPlayer}`;
+            }
+
+            document.querySelectorAll(".big-cell").forEach((el, i) => {
+                el.classList.remove("active");
+
+                if (nextBoard === null || nextBoard === i) {
+                    if (!boardWinners[i]) el.classList.add("active");
+                }
+            });
+        }
+
+        function undo() {
+            if (history.length === 0 || gameOver) return;
+
+            const last = history.pop();
+
+            boards[last.b][last.c] = "";
+            const cell = game.children[last.b].children[last.c];
+            cell.textContent = "";
+
+            boardWinners[last.b] = null;
+            game.children[last.b].classList.remove("wonX", "wonO", "disabled");
+
+            currentPlayer = last.player;
+            gameOver = false;
+            nextBoard = null;
+
+            updateUI();
+        }
+
+        function resetGame() {
+            // reset local state
+            boards = Array(9).fill().map(() => Array(9).fill(""));
+            boardWinners = Array(9).fill(null);
+            nextBoard = null;
+            currentPlayer = "X";
+            gameOver = false;
+
+            updateUI();
+            renderBoard();
+
+            // 🔥 sync to Firebase (only in multiplayer)
+            if (!localMode) {
+                set(ref(db, "rooms/" + roomId), {
+                    boards,
+                    currentPlayer,
+                    nextBoard,
+                    boardWinners,
+                    // players: null // optional: clears players if you want fresh roles
+                });
+
+                // also clear saved role
+                localStorage.removeItem("player_" + roomId);
+                mySymbol = null;
+            }
+        }
+        // INITIAL UI
+        updateUI();
+        if (!localMode) {
+            onValue(ref(db, "rooms/" + roomId), (snapshot) => {
+                const data = snapshot.val();
+                if (!data) return;
+
+                boards = data.boards || boards;
+                currentPlayer = data.currentPlayer || currentPlayer;
+                nextBoard = data.nextBoard;
+                boardWinners = data.boardWinners || boardWinners;
+
+                renderBoard();
+            });
+        }
+
+        function renderBoard() {
+            for (let b = 0; b < 9; b++) {
+                for (let c = 0; c < 9; c++) {
+                    const cell = game.children[b].children[c];
+                    cell.textContent = boards[b][c];
+                }
+            }
+
+            updateUI();
+        }
+    </script>
 
 </body>
+
 </html>
